@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Hardened Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprint: UserAccount
+    function isValidUserAccount(data, userId) {
+      return data.keys().hasAll(['uid', 'monthlyBudget', 'hasCompletedOnboarding', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'monthlyBudget', 'hasCompletedOnboarding', 'createdAt', 'updatedAt'])
+        && data.uid is string
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && (!('email' in data) || (data.email is string && data.email.size() <= 256))
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 120))
+        && data.monthlyBudget is number
+        && data.monthlyBudget >= 0
+        && data.monthlyBudget <= 100000000000
+        && data.hasCompletedOnboarding is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: Transaction
+    function isValidTransaction(data, userId, transactionId) {
+      return data.keys().hasAll(['id', 'ownerId', 'type', 'amount', 'category', 'date', 'isoDate', 'description', 'icon', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'type', 'amount', 'category', 'date', 'isoDate', 'time', 'description', 'icon', 'notes', 'paymentMethod', 'createdAt', 'updatedAt'])
+        && data.id is string
+        && isValidId(data.id)
+        && data.id == transactionId
+        && data.ownerId is string
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.type in ['income', 'expense']
+        && data.amount is number
+        && data.amount > 0
+        && data.amount <= 100000000000
+        && data.category is string
+        && data.category.size() >= 1
+        && data.category.size() <= 80
+        && data.date is string
+        && data.date.size() >= 1
+        && data.date.size() <= 40
+        && data.isoDate is string
+        && data.isoDate.size() == 10
+        && data.isoDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && (!('time' in data) || (data.time is string && data.time.size() <= 30))
+        && data.description is string
+        && data.description.size() >= 1
+        && data.description.size() <= 200
+        && data.icon is string
+        && data.icon.size() >= 1
+        && data.icon.size() <= 40
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
+        && (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 50))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Collection: /users/{userId}
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserAccount(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserAccount(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['monthlyBudget', 'hasCompletedOnboarding', 'displayName', 'email', 'updatedAt'])
+          || incoming().diff(existing()).affectedKeys().hasOnly(['monthlyBudget', 'updatedAt'])
+        );
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Subcollection: /users/{userId}/transactions/{transactionId}
+      match /transactions/{transactionId} {
+        allow get: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(transactionId)
+          && existing().ownerId == request.auth.uid;
+        allow list: if isOwner(userId)
+          && isValidId(userId)
+          && resource.data.ownerId == request.auth.uid;
+        allow create: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(transactionId)
+          && isValidTransaction(incoming(), userId, transactionId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(transactionId)
+          && isValidTransaction(incoming(), userId, transactionId)
+          && existing().ownerId == request.auth.uid
+          && incoming().ownerId == existing().ownerId
+          && incoming().id == existing().id
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['type', 'amount', 'category', 'date', 'isoDate', 'time', 'description', 'icon', 'notes', 'paymentMethod', 'updatedAt'])
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow delete: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(transactionId)
+          && existing().ownerId == request.auth.uid;
+      }
+    }
+  }
+}

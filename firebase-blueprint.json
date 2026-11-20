@@ -1,0 +1,167 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Private user account profile, monthly budget configuration, and onboarding status.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the account owner."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 256,
+          "description": "User email address."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Display name of the account owner."
+        },
+        "monthlyBudget": {
+          "type": "number",
+          "description": "Base monthly budget configured by the user in COP."
+        },
+        "hasCompletedOnboarding": {
+          "type": "boolean",
+          "description": "Whether the user has provided their initial monthly budget."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": [
+        "uid",
+        "monthlyBudget",
+        "hasCompletedOnboarding",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Individual income or expense entry belonging to a specific user account.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique transaction document identifier."
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the transaction owner."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["income", "expense"],
+          "description": "Whether the transaction is an income or an expense."
+        },
+        "amount": {
+          "type": "number",
+          "description": "Transaction amount in COP (strictly positive)."
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Transaction category name."
+        },
+        "date": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "Human-readable localized date string."
+        },
+        "isoDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "description": "ISO 8601 date in YYYY-MM-DD format."
+        },
+        "time": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Formatted local time string."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Short summary description of the movement."
+        },
+        "icon": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "Lucide icon identifier."
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Optional user observations or notes."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Optional payment method label."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "type",
+        "amount",
+        "category",
+        "date",
+        "isoDate",
+        "description",
+        "icon",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserAccount"
+      },
+      "description": "Private account document storing monthly budget and onboarding state for a single authenticated user."
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": {
+        "$ref": "#/entities/Transaction"
+      },
+      "description": "Private subcollection of income and expense movements owned exclusively by userId."
+    }
+  }
+}

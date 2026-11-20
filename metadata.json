@@ -1,0 +1,6 @@
+{
+  "name": "Mi Presupuesto Mensual",
+  "description": "Dashboard de control financiero personal para seguimiento de presupuesto y gastos en pesos colombianos.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
